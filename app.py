@@ -50,14 +50,15 @@ if 'model' not in st.session_state:
 st.subheader("🤖 XGBoost Production")
 numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
 
+# Safe defaults
 rmse = 0
 r2_score = 0
-X_cols = []
+X_cols = ['discount', 'spend']  # Fallback
 model = None
 
-if len(numeric_cols) > 1:
-    X_cols = numeric_cols[:2]
-    y_col = numeric_cols[0]
+if len(numeric_cols) >= 3:  # Need target + 2 features
+    X_cols = numeric_cols[1:3]  # Skip price as target
+    y_col = numeric_cols[0]     # Price as target
     
     X = df[X_cols].fillna(0)
     y = df[y_col].fillna(df[y_col].mean())
@@ -69,49 +70,53 @@ if len(numeric_cols) > 1:
     rmse = np.sqrt(mean_squared_error(y, predictions))
     r2_score = model.score(X, y)
     
-    st.success(f"✅ Live! RMSE: ₹{rmse:.0f}")
-    
     st.session_state.model = model
+    st.success(f"✅ Trained! RMSE: ₹{rmse:.0f}")
 
-# Leaderboard (Safe)
-st.subheader("🏆 Model Leaderboard")
+# Leaderboard always safe
+st.subheader("🏆 Leaderboard")
 leaderboard = pd.DataFrame({
-    "Model": ["XGBoost Production", "Baseline"],
-    "RMSE": [rmse, df['price'].std() if 'price' in df else 0],
-    "R²": [r2_score, 0.0],
-    "Status": ["✅ LIVE", "📉 BEATEN"]
+    "Model": ["XGBoost", "Baseline"],
+    "RMSE": [rmse, df['price'].std() if 'price' in df.columns else 1000],
+    "R²": [r2_score, 0],
+    "Status": ["✅ Ready" if model else "⚠️ Data needed", "📉"]
 })
-st.dataframe(leaderboard, use_container_width=True)# Fixed Live Prediction
+st.dataframe(leaderboard)
+
+# Live Prediction (Safe + Balloons)
 st.subheader("🎯 Live ML Prediction")
-col1, col2 = st.columns(2)
-feat1_val = col1.slider(f"📊 {X_cols[0]}", float(df[X_cols[0]].min()), float(df[X_cols[0]].max()), float(df[X_cols[0]].mean()))
-feat2_val = col2.slider(f"💰 {X_cols[1]}", float(df[X_cols[1]].min()), float(df[X_cols[1]].max()), float(df[X_cols[1]].mean()))
-
-if st.button("🔮 **PREDICT PRICE**", use_container_width=True):
-    test_X = pd.DataFrame({X_cols[0]: [feat1_val], X_cols[1]: [feat2_val]})
-    prediction = model.predict(test_X)[0]
-    st.metric("Predicted Optimal Price", f"**₹{prediction:.0f}**")
-    st.balloons()
-
-    # SHAP Explanations  
-    st.subheader("🔍 Why This Prediction?")
-try:
-    import shap
-    explainer = shap.Explainer(model)
-    shap_values = explainer(test_X)
+if model and len(X_cols) == 2:
+    col1, col2 = st.columns(2)
+    feat1_val = col1.slider(f"📊 {X_cols[0]}", 0.0, 100.0, 50.0)
+    feat2_val = col2.slider(f"💰 {X_cols[1]}", 0.0, 1000.0, 100.0)
     
-    st.shap(shap.plots.waterfall(shap_values[0]), height=400)
-    st.success("✅ SHAP: Model decisions explained!")
-except:
-    st.info("Install: pip install shap")
+    if st.button("🔮 **PREDICT PRICE**", use_container_width=True):
+        test_X = pd.DataFrame({X_cols[0]: [feat1_val], X_cols[1]: [feat2_val]})
+        prediction = model.predict(test_X)[0]
+        st.metric("Predicted Price", f"₹{prediction:.0f}")
+        st.balloons()  # 🎉
+else:
+    st.info("📊 3+ numeric columns chahiye")
 
+# SHAP (Only after prediction)
+if 'prediction_made' not in st.session_state:
+    st.session_state.prediction_made = False
+
+if st.session_state.prediction_made and model:
+    st.subheader("🔍 SHAP Explanation")
+    try:
+        import shap
+        explainer = shap.Explainer(model)
+        shap_values = explainer(test_X)
+        st.shap(shap.plots.waterfall(shap_values[0]))
+    except:
+        st.info("SHAP: pip install shap")
+
+# CSV Batch
 if csv_file:
-    df = pd.read_csv(csv_file)
-    df["predicted"] = model.predict(df[X_cols].fillna(0))
-    st.dataframe(df[["predicted"]].head())
-
-
-
-
-
-
+    csv_df = pd.read_csv(csv_file)
+    if model and len(X_cols) == 2:
+        csv_df["predicted"] = model.predict(csv_df[X_cols].fillna(0))
+        st.dataframe(csv_df[["predicted"]].head())
+    else:
+        st.info("Model ready hone ke baad CSV predict karo")

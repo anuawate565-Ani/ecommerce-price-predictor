@@ -3,8 +3,6 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import xgboost as xgb
-import mlflow
-import mlflow.xgboost
 from sklearn.metrics import mean_squared_error
 import joblib
 
@@ -45,7 +43,11 @@ if st.button("Find Best Deal"):
     st.dataframe(deals.style.highlight_min(subset="Final", color="lightgreen"))
 
 csv_file = st.sidebar.file_uploader("CSV Batch", type="csv")
-st.subheader("🤖 XGBoost Production Model")
+# Global model storage
+if 'model' not in st.session_state:
+    st.session_state.model = None
+
+st.subheader("🤖 XGBoost Production")
 numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
 if len(numeric_cols) > 1:
     X_cols = numeric_cols[:2]
@@ -54,21 +56,22 @@ if len(numeric_cols) > 1:
     X = df[X_cols].fillna(0)
     y = df[y_col].fillna(df[y_col].mean())
     
-    model = xgb.XGBRegressor(n_estimators=25)
-    model.fit(X, y)
+    # Train & store
+    st.session_state.model = xgb.XGBRegressor(n_estimators=25)
+    st.session_state.model.fit(X, y)
+    model = st.session_state.model  # Reference
     
-    # FIXED:
     predictions = model.predict(X)
     rmse = np.sqrt(mean_squared_error(y, predictions))
     
-    st.success(f"✅ Production Ready! RMSE: ₹{rmse:.0f}")
-    st.metric("R² Score", f"{model.score(X,y):.1%}")
-
-
-# 🎯 PRODUCTION FEATURES
-joblib.dump(model, "price_predictor_production.pkl")
-st.download_button("💾 Download Production Model", open("price_predictor_production.pkl","rb"), "price_predictor_production.pkl")
-
+    st.success(f"✅ Live! RMSE: ₹{rmse:.0f}")
+    
+    # Safe download
+    try:
+        joblib.dump(model, "model.pkl")
+        st.download_button("💾 Model", open("model.pkl","rb"), "model.pkl")
+    except:
+        st.info("Download local mein karo")
 # Leaderboard (Step 10)
 st.subheader("🏆 Model Leaderboard")
 leaderboard = pd.DataFrame({
@@ -91,9 +94,8 @@ if st.button("🔮 **PREDICT PRICE**", use_container_width=True):
     st.metric("Predicted Optimal Price", f"**₹{prediction:.0f}**")
     st.balloons()
 
-    
     # SHAP Explanations  
-st.subheader("🔍 Why This Prediction?")
+    st.subheader("🔍 Why This Prediction?")
 try:
     import shap
     explainer = shap.Explainer(model)
@@ -108,6 +110,7 @@ if csv_file:
     df = pd.read_csv(csv_file)
     df["predicted"] = model.predict(df[X_cols].fillna(0))
     st.dataframe(df[["predicted"]].head())
+
 
 
 

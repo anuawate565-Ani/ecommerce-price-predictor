@@ -30,18 +30,27 @@ brand = st.text_input("Brand", "samsung")
 category = st.text_input("Category", "mobile")
 
 # FLIPKART STYLE DEAL FINDER
-product_name = st.text_input("🔍 Product name", "iPhone 15")
-if st.button("Find Best Deal"):
-    deals = pd.DataFrame({
-    "Platform": ["Flipkart", "Amazon", "Myntra"],
-    "Original": [35000, 38000, 34000],
-    "Discount": [15, 10, 18],
-    "Final": [29750, 34200, 27880]
-})
-    best_deal = deals.loc[deals["Final"].idxmin()]
-    st.success(f"🎉 Best Deal: {best_deal['Platform']} - Rs{best_deal['Final']}")
-    st.dataframe(deals.style.highlight_min(subset="Final", color="lightgreen"))
+# DYNAMIC Deal Finder
+product_name = st.text_input("🔍 Product", "iPhone 15")
+competitor_price = st.number_input("Competitor Price", 20000, 100000, 35000)
 
+if st.button("💰 Find Best Deal", use_container_width=True):
+    # Dynamic calculation based on competitor_price
+    base_price = competitor_price
+    deals = pd.DataFrame({
+        "Platform": ["Flipkart", "Amazon", "Myntra"],
+        "Original": [base_price, base_price*1.05, base_price*0.98],
+        "Discount": [15, 12, 18],
+        "Final": [
+            base_price * 0.85,      # Flipkart 15% off
+            base_price * 1.05 * 0.88, # Amazon 12% off
+            base_price * 0.98 * 0.82  # Myntra 18% off
+        ]
+    })
+    
+    best_deal = deals.loc[deals["Final"].idxmin()]
+    st.success(f"🎉 **{best_deal['Platform']}** - ₹{best_deal['Final']:.0f}!")
+    st.dataframe(deals.style.highlight_min(subset="Final", color="lightgreen"))
 csv_file = st.sidebar.file_uploader("CSV Batch", type="csv")
 # Global model storage
 if 'model' not in st.session_state:
@@ -120,3 +129,4 @@ if csv_file:
         st.dataframe(csv_df[["predicted"]].head())
     else:
         st.info("Model ready hone ke baad CSV predict karo")
+

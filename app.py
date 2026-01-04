@@ -49,6 +49,12 @@ if 'model' not in st.session_state:
 
 st.subheader("🤖 XGBoost Production")
 numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+
+rmse = 0
+r2_score = 0
+X_cols = []
+model = None
+
 if len(numeric_cols) > 1:
     X_cols = numeric_cols[:2]
     y_col = numeric_cols[0]
@@ -56,33 +62,26 @@ if len(numeric_cols) > 1:
     X = df[X_cols].fillna(0)
     y = df[y_col].fillna(df[y_col].mean())
     
-    # Train & store
-    st.session_state.model = xgb.XGBRegressor(n_estimators=25)
-    st.session_state.model.fit(X, y)
-    model = st.session_state.model  # Reference
+    model = xgb.XGBRegressor(n_estimators=25)
+    model.fit(X, y)
     
     predictions = model.predict(X)
     rmse = np.sqrt(mean_squared_error(y, predictions))
+    r2_score = model.score(X, y)
     
     st.success(f"✅ Live! RMSE: ₹{rmse:.0f}")
     
-    # Safe download
-    try:
-        joblib.dump(model, "model.pkl")
-        st.download_button("💾 Model", open("model.pkl","rb"), "model.pkl")
-    except:
-        st.info("Download local mein karo")
-# Leaderboard (Step 10)
+    st.session_state.model = model
+
+# Leaderboard (Safe)
 st.subheader("🏆 Model Leaderboard")
 leaderboard = pd.DataFrame({
     "Model": ["XGBoost Production", "Baseline"],
-    "RMSE": [np.sqrt(mean_squared_error(y, model.predict(X))), y.std()],
-    "R²": [model.score(X, y), 0.0],
+    "RMSE": [rmse, df['price'].std() if 'price' in df else 0],
+    "R²": [r2_score, 0.0],
     "Status": ["✅ LIVE", "📉 BEATEN"]
 })
-st.dataframe(leaderboard.style.highlight_max(subset=["R²"], color="green"), use_container_width=True)
-
-# Fixed Live Prediction
+st.dataframe(leaderboard, use_container_width=True)# Fixed Live Prediction
 st.subheader("🎯 Live ML Prediction")
 col1, col2 = st.columns(2)
 feat1_val = col1.slider(f"📊 {X_cols[0]}", float(df[X_cols[0]].min()), float(df[X_cols[0]].max()), float(df[X_cols[0]].mean()))
@@ -110,6 +109,7 @@ if csv_file:
     df = pd.read_csv(csv_file)
     df["predicted"] = model.predict(df[X_cols].fillna(0))
     st.dataframe(df[["predicted"]].head())
+
 
 
 

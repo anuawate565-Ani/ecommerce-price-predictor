@@ -45,7 +45,7 @@ if st.button("Find Best Deal"):
     st.dataframe(deals.style.highlight_min(subset="Final", color="lightgreen"))
 
 csv_file = st.sidebar.file_uploader("CSV Batch", type="csv")
-st.subheader("🤖 Real ML Model")
+st.subheader("🤖 XGBoost Production Model")
 numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
 if len(numeric_cols) > 1:
     X_cols = numeric_cols[:2]
@@ -54,18 +54,15 @@ if len(numeric_cols) > 1:
     X = df[X_cols].fillna(0)
     y = df[y_col].fillna(df[y_col].mean())
     
-    model = xgb.XGBRegressor(n_estimators=50)
+    model = xgb.XGBRegressor(n_estimators=25)
     model.fit(X, y)
-    predictions = model.predict(X)
-rmse = np.sqrt(mean_squared_error(y, predictions))
-
-mlflow.xgboost.autolog()  # Auto-logs everything!
-with mlflow.start_run(run_name="PricePredictor"):
-    mlflow.log_metric("final_rmse", rmse)
-    mlflow.xgboost.log_model(model, "xgboost_production")
     
-st.success(f"🚀 MLflow Auto-Logged! RMSE: ₹{rmse:.0f}")
-st.metric("RMSE", f"₹{rmse:.0f}")
+    # FIXED:
+    predictions = model.predict(X)
+    rmse = np.sqrt(mean_squared_error(y, predictions))
+    
+    st.success(f"✅ Production Ready! RMSE: ₹{rmse:.0f}")
+    st.metric("R² Score", f"{model.score(X,y):.1%}")
 
 
 # 🎯 PRODUCTION FEATURES
@@ -111,6 +108,7 @@ if csv_file:
     df = pd.read_csv(csv_file)
     df["predicted"] = model.predict(df[X_cols].fillna(0))
     st.dataframe(df[["predicted"]].head())
+
 
 
 

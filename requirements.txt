@@ -4,3 +4,4 @@ xgboost
 pandas
 numpy
 scikit-learn
+plotly==5.22.0

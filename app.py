@@ -14,11 +14,11 @@ category = st.text_input("Category", "mobile")
 product_name = st.text_input("🔍 Product name", "iPhone 15")
 if st.button("Find Best Deal"):
     deals = pd.DataFrame({
-        "Platform": ["Flipkart", "Amazon", "Myntra"],
-        "Original": [np.random.randint(25000, 85000, 3)],
-        "Discount": [np.random.randint(5, 25, 3)],
-        "Final": [np.random.randint(20000, 70000, 3)]
-    })
+    "Platform": ["Flipkart", "Amazon", "Myntra"],
+    "Original": [35000, 38000, 34000],
+    "Discount": [15, 10, 18],
+    "Final": [29750, 34200, 27880]
+})
     best_deal = deals.loc[deals["Final"].idxmin()]
     st.success(f"🎉 Best Deal: {best_deal['Platform']} - Rs{best_deal['Final']}")
     st.dataframe(deals.style.highlight_min(subset="Final", color="lightgreen"))
@@ -48,4 +48,5 @@ if st.button("Predict Optimal Price"):
 if csv_file:
     df = pd.read_csv(csv_file)
     df["predicted"] = df
+
 

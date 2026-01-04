@@ -4,3 +4,5 @@ xgboost
 plotly
 joblib
 scikit-learn
+mlflow
+shap

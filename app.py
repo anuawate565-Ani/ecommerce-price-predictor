@@ -10,8 +10,20 @@ competitor_price = st.number_input("Competitor Price", 10000, 100000, 25000)
 brand = st.text_input("Brand", "samsung")
 category = st.text_input("Category", "mobile")
 
-csv_file = st.sidebar.file_uploader("CSV Batch", type="csv")
+# FLIPKART STYLE DEAL FINDER
+product_name = st.text_input("🔍 Product name", "iPhone 15")
+if st.button("Find Best Deal"):
+    deals = pd.DataFrame({
+        "Platform": ["Flipkart", "Amazon", "Myntra"],
+        "Original": [np.random.randint(25000, 85000, 3)],
+        "Discount": [np.random.randint(5, 25, 3)],
+        "Final": [np.random.randint(20000, 70000, 3)]
+    })
+    best_deal = deals.loc[deals["Final"].idxmin()]
+    st.success(f"🎉 Best Deal: {best_deal['Platform']} - Rs{best_deal['Final']}")
+    st.dataframe(deals.style.highlight_min(subset="Final", color="lightgreen"))
 
+csv_file = st.sidebar.file_uploader("CSV Batch", type="csv")
 if st.button("Predict Optimal Price"):
     discount_pct = 12.5
     optimal_price = competitor_price * (1 - discount_pct/100)
@@ -36,3 +48,4 @@ if st.button("Predict Optimal Price"):
 if csv_file:
     df = pd.read_csv(csv_file)
     df["predicted"] = df
+

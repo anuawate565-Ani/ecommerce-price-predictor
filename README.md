@@ -1,10 +1,9 @@
-E-commerce Product Price Prediction System (ML Project
+# E-commerce Product Price Prediction System (Machine Learning Project)
 
-**Production ML Model | RMSE ₹2,079 | MAPE 17.6%**
+**End-to-End ML Pipeline | RMSE ₹2,079 | MAPE 17.6%**
 
-## 📊 Business Impact
-Optimal pricing for Flipkart/Amazon sellers  
-17.6% accuracy = ₹50k/month extra profit
+## 📊 Business Context
+Supports data-driven pricing decisions for e-commerce sellers by predicting product prices using historical data.
 
 ## 🎯 Results
 | Metric | Value |
@@ -13,3 +12,9 @@ Optimal pricing for Flipkart/Amazon sellers
 | MAPE   | 17.6% |
 
 ## 🛠️ Tech Stack
+- Python  
+- Pandas, NumPy  
+- Scikit-learn  
+- XGBoost  
+- Streamlit  
+- Joblib

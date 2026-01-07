@@ -1,4 +1,4 @@
-# 🚀 E-commerce Price Predictor
+E-commerce Product Price Prediction System (ML Project
 
 **Production ML Model | RMSE ₹2,079 | MAPE 17.6%**
 

@@ -1,0 +1,12 @@
+{
+  "baseline": {
+    "model": "LinearRegression",
+    "rmse": 4523,
+    "r2": 0.47
+  },
+  "xgboost": {
+    "model": "XGBoostRegressor",
+    "rmse": 2187,
+    "r2": 0.78
+  }
+}

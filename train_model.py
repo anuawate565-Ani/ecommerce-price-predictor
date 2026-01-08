@@ -1,58 +1,74 @@
 import pandas as pd
-import joblib
-from sklearn.preprocessing import LabelEncoder
-from sklearn.linear_model import LinearRegression
+import xgboost as xgb
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error, r2_score
-from xgboost import XGBRegressor
+import joblib
 import json
 import numpy as np
 import os
 
-# 1. Create model folder
-os.makedirs("model", exist_ok=True)
+# Create model directory
+os.makedirs('model', exist_ok=True)
 
-# 2. Load data
-print("📊 Loading data...")
-data = pd.read_csv('ecommerce_data.csv')  # Your file
-print(f"✅ Loaded {len(data)} records")
+# Sample data (replace with your ecommerce_sales.csv)
+print("📊 Creating sample training data...")
+np.random.seed(42)
+n_samples = 1000
 
-# 3. Encode categoricals
-print("🔤 Encoding...")
-le_brand = LabelEncoder().fit(data['brand'])
-le_category = LabelEncoder().fit(data['category'])
-data['brand_enc'] = le_brand.transform(data['brand'])
-data['category_enc'] = le_category.transform(data['category'])
+data = {
+    'brand': np.random.choice(['Samsung', 'Apple', 'Xiaomi', 'OnePlus'], n_samples),
+    'category': np.random.choice(['mobile', 'laptop', 'tablet', 'watch'], n_samples),
+    'discount': np.random.uniform(0, 90, n_samples),
+    'price': np.random.normal(25000, 15000, n_samples)
+}
+data['price'] = np.clip(data['price'], 5000, 100000)
 
-# 4. Prepare features
-X = data[['brand_enc', 'category_enc', 'discount']]  # Adjust columns
-y = data['price']
+df = pd.DataFrame(data)
+print(f"✅ Dataset ready: {len(df)} samples")
 
-# 5. Split & Train
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-print("🤖 Training...")
+# Encode features
+brand_encoder = LabelEncoder()
+category_encoder = LabelEncoder()
 
-# Baseline
-baseline = LinearRegression().fit(X_train, y_train)
-baseline_rmse = np.sqrt(mean_squared_error(y_test, baseline.predict(X_test)))
+df['brand_enc'] = brand_encoder.fit_transform(df['brand'])
+df['category_enc'] = category_encoder.fit_transform(df['category'])
 
-# XGBoost
-xgboost = XGBRegressor(n_estimators=100).fit(X_train, y_train)
-xgb_rmse = np.sqrt(mean_squared_error(y_test, xgboost.predict(X_test)))
+# Train model
+X = df[['brand_enc', 'category_enc', 'discount']]
+y = df['price']
 
-# 6. Save
-joblib.dump(xgboost, 'model/price_model.pkl')
-joblib.dump(le_brand, 'model/brand_encoder.pkl')
-joblib.dump(le_category, 'model/category_encoder.pkl')
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model = xgb.XGBRegressor(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
 
 # Metrics
+y_pred = model.predict(X_test)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+r2 = r2_score(y_test, y_pred)
+
+print(f"✅ XGBoost RMSE: {rmse:.0f} | R²: {r2:.2f}")
+
+# Save model and encoders
+joblib.dump(model, 'model/price_model.pkl')
+joblib.dump(brand_encoder, 'model/brand_encoder.pkl')
+joblib.dump(category_encoder, 'model/category_encoder.pkl')
+
+# Update metrics.json
 metrics = {
-    "baseline": {"rmse": float(baseline_rmse), "r2": float(r2_score(y_test, baseline.predict(X_test)))},
-    "xgboost": {"rmse": float(xgb_rmse), "r2": float(r2_score(y_test, xgboost.predict(X_test)))}
+    "xgboost": {
+        "model": "XGBoostRegressor",
+        "rmse": float(rmse),
+        "r2": float(r2)
+    }
 }
 
-with open("metrics.json", "w") as f:
+with open('metrics.json', 'w') as f:
     json.dump(metrics, f, indent=2)
 
-print("✅ COMPLETE!")
-print(f"📈 XGBoost RMSE: {xgb_rmse:.0f} | R²: {r2_score(y_test, xgboost.predict(X_test)):.2f}")
+print("🎉 ALL FILES SAVED!")
+print("✅ model/price_model.pkl")
+print("✅ model/brand_encoder.pkl") 
+print("✅ model/category_encoder.pkl")
+print("✅ metrics.json updated")

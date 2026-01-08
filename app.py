@@ -1,132 +1,106 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
-import plotly.express as px
-import xgboost as xgb
-from sklearn.metrics import mean_squared_error
 import joblib
+import json
+import os
 
-st.title("E-commerce Price Predictor PRO")
-st.markdown("Discount Demand Trends XAI Batch")
+# Page configuration
+st.set_page_config(
+    page_title="E-commerce Price Prediction",
+    page_icon="📦",
+    layout="centered"
+)
 
-@st.cache_data
-def load_dataset():
+# Title and context
+st.title("E-commerce Product Price Prediction System (ML Project)")
+st.markdown(
+    "Predicts product prices using a trained machine learning regression model "
+    "based on historical e-commerce data."
+)
+
+# Load model and encoders
+@st.cache_resource
+def load_model_components():
+    model_path = 'model/price_model.pkl'
+    brand_path = 'model/brand_encoder.pkl'
+    category_path = 'model/category_encoder.pkl'
+    
+    if not all(os.path.exists(p) for p in [model_path, brand_path, category_path]):
+        st.error("❌ Model files missing. Run `python train_model.py` first.")
+        st.stop()
+    
+    model = joblib.load(model_path)
+    brand_encoder = joblib.load(brand_path)
+    category_encoder = joblib.load(category_path)
+    
+    with open('metrics.json', 'r') as f:
+        metrics = json.load(f)
+    
+    return model, brand_encoder, category_encoder, metrics
+
+model, brand_encoder, category_encoder, metrics = load_model_components()
+
+# Display model performance metrics
+st.subheader("Model Performance")
+col1, col2 = st.columns(2)
+xgboost_metrics = metrics.get('xgboost', {})
+with col1:
+    st.metric("RMSE (₹)", f"{xgboost_metrics.get('rmse', 0):.0f}")
+with col2:
+    st.metric("R² Score", f"{xgboost_metrics.get('r2', 0):.3f}")
+
+# Fixed feature order
+FEATURES = ["brand_enc", "category_enc", "discount"]
+
+# User inputs
+st.subheader("Product Details")
+brand = st.text_input("Brand", value="Samsung")
+category = st.text_input("Category", value="mobile")
+discount = st.slider("Discount (%)", 0.0, 90.0, 15.0)
+
+# Prediction
+if st.button("Predict Price", type="primary"):
     try:
-        df = pd.read_csv("ecommerce_sales.csv")
-        st.success(f"✅ Production Dataset Loaded: {len(df):,} records")
-        st.dataframe(df.head(5))
-        return df
-    except:
-        st.warning("📥 CSV filename check karo!")
-        return pd.DataFrame()
+        # Safe encoding with fallback
+        try:
+            brand_enc = brand_encoder.transform([brand])[0]
+        except:
+            st.warning(f"⚠️ Brand '{brand}' not in training data. Using fallback.")
+            brand_enc = 0
+            
+        try:
+            category_enc = category_encoder.transform([category])[0]
+        except:
+            st.warning(f"⚠️ Category '{category}' not in training data. Using fallback.")
+            category_enc = 0
+        
+        # Create feature vector
+        input_data = pd.DataFrame({
+            FEATURES[0]: [brand_enc],
+            FEATURES[1]: [category_enc],
+            FEATURES[2]: [discount]
+        })
+        
+        # Predict
+        predicted_price = model.predict(input_data)[0]
+        
+        # Display result
+        st.success(f"**Predicted Price: ₹{predicted_price:,.0f}**")
+        st.info(f"Brand: {brand} | Category: {category} | Discount: {discount}%")
+        
+    except Exception as e:
+        st.error(f"Prediction failed: {str(e)}")
 
-df = load_dataset()
-
-if not df.empty:
-    st.metric("Avg Price", f"₹{df['price'].mean():.0f}")
-    st.metric("Total Sales", f"₹{df['revenue'].sum():.0f}")
-competitor_price = st.number_input("Competitor Price", 10000, 100000, 25000)
-brand = st.text_input("Brand", "samsung")
-category = st.text_input("Category", "mobile")
-
-# FLIPKART STYLE DEAL FINDER
-# DYNAMIC Deal Finder
-product_name = st.text_input("🔍 Product", "iPhone 15")
-competitor_price = st.number_input("Competitor Price", 20000, 100000, 35000)
-
-if st.button("💰 Find Best Deal", use_container_width=True):
-    # Dynamic calculation based on competitor_price
-    base_price = competitor_price
-    deals = pd.DataFrame({
-        "Platform": ["Flipkart", "Amazon", "Myntra"],
-        "Original": [base_price, base_price*1.05, base_price*0.98],
-        "Discount": [15, 12, 18],
-        "Final": [
-            base_price * 0.85,      # Flipkart 15% off
-            base_price * 1.05 * 0.88, # Amazon 12% off
-            base_price * 0.98 * 0.82  # Myntra 18% off
-        ]
-    })
+# Explainability
+with st.expander("How Prediction Works"):
+    st.markdown("""
+    1. **Input Processing**: Brand/category encoded using pre-trained LabelEncoders
+    2. **Feature Engineering**: [brand_enc, category_enc, discount]
+    3. **Model Inference**: XGBoost regression predicts price instantly
+    4. **Output**: Production-ready price prediction
     
-    best_deal = deals.loc[deals["Final"].idxmin()]
-    st.success(f"🎉 **{best_deal['Platform']}** - ₹{best_deal['Final']:.0f}!")
-    st.dataframe(deals.style.highlight_min(subset="Final", color="lightgreen"))
-csv_file = st.sidebar.file_uploader("CSV Batch", type="csv")
-# Global model storage
-if 'model' not in st.session_state:
-    st.session_state.model = None
+    *Model trained offline via `train_model.py`*
+    """)
 
-st.subheader("🤖 XGBoost Production")
-numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-
-# Safe defaults
-rmse = 0
-r2_score = 0
-X_cols = ['discount', 'spend']  # Fallback
-model = None
-
-if len(numeric_cols) >= 3:  # Need target + 2 features
-    X_cols = numeric_cols[1:3]  # Skip price as target
-    y_col = numeric_cols[0]     # Price as target
-    
-    X = df[X_cols].fillna(0)
-    y = df[y_col].fillna(df[y_col].mean())
-    
-    model = xgb.XGBRegressor(n_estimators=25)
-    model.fit(X, y)
-    
-    predictions = model.predict(X)
-    rmse = np.sqrt(mean_squared_error(y, predictions))
-    r2_score = model.score(X, y)
-    
-    st.session_state.model = model
-    st.success(f"✅ Trained! RMSE: ₹{rmse:.0f}")
-
-# Leaderboard always safe
-st.subheader("🏆 Leaderboard")
-leaderboard = pd.DataFrame({
-    "Model": ["XGBoost", "Baseline"],
-    "RMSE": [rmse, df['price'].std() if 'price' in df.columns else 1000],
-    "R²": [r2_score, 0],
-    "Status": ["✅ Ready" if model else "⚠️ Data needed", "📉"]
-})
-st.dataframe(leaderboard)
-
-# Live Prediction (Safe + Balloons)
-st.subheader("🎯 Live ML Prediction")
-if model and len(X_cols) == 2:
-    col1, col2 = st.columns(2)
-    feat1_val = col1.slider(f"📊 {X_cols[0]}", 0.0, 100.0, 50.0)
-    feat2_val = col2.slider(f"💰 {X_cols[1]}", 0.0, 1000.0, 100.0)
-    
-    if st.button("🔮 **PREDICT PRICE**", use_container_width=True):
-        test_X = pd.DataFrame({X_cols[0]: [feat1_val], X_cols[1]: [feat2_val]})
-        prediction = model.predict(test_X)[0]
-        st.metric("Predicted Price", f"₹{prediction:.0f}")
-        st.balloons()  # 🎉
-else:
-    st.info("📊 3+ numeric columns chahiye")
-
-# SHAP (Only after prediction)
-if 'prediction_made' not in st.session_state:
-    st.session_state.prediction_made = False
-
-if st.session_state.prediction_made and model:
-    st.subheader("🔍 SHAP Explanation")
-    try:
-        import shap
-        explainer = shap.Explainer(model)
-        shap_values = explainer(test_X)
-        st.shap(shap.plots.waterfall(shap_values[0]))
-    except:
-        st.info("SHAP: pip install shap")
-
-# CSV Batch
-if csv_file:
-    csv_df = pd.read_csv(csv_file)
-    if model and len(X_cols) == 2:
-        csv_df["predicted"] = model.predict(csv_df[X_cols].fillna(0))
-        st.dataframe(csv_df[["predicted"]].head())
-    else:
-        st.info("Model ready hone ke baad CSV predict karo")
-
+st.markdown("---")
+st.markdown("*Interview-ready ML deployment | No training in app.py*")
